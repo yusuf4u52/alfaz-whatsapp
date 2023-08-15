@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WhatsApp Client UI</title>
+</head>
+
+<body>
+    <h1>WhatsApp Client UI</h1>
+
+    <h2>Generate QR Code</h2>
+    <button id="generateQRButton">Generate QR Code</button>
+    <img id="qrCode" alt="QR Code" style="display: none;">
+
+    <h2>Send WhatsApp Message</h2>
+
+    <label for="phoneNumber">Phone Number:</label>
+    <input type="text" id="phoneNumber" /><br>
+
+    <label for="message">Message:</label>
+    <input type="text" id="message" /><br>
+
+    <button id="sendMessageButton">Send Message</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const sessionName = "yusuf4u52"
+        const generateQRButton = document.getElementById('generateQRButton');
+        const qrCodeImage = document.getElementById('qrCode');
+
+        const socket = io(); // Create Socket.IO connection
+
+        socket.on('newQRCode', qrDataURL => {
+            qrCodeImage.style.display = 'none';
+            qrCodeImage.src = qrDataURL;
+            qrCodeImage.style.display = 'block';
+        });
+
+        socket.on('ready', () => {
+            generateQRButton.hidden = true;
+        });
+
+        generateQRButton.addEventListener('click', async () => {
+            
+            if (sessionName) {
+                const response = await fetch(`/api/generate-qr/${sessionName}`);
+                if (!response.ok) {
+                    alert('Error generating QR code');
+                }
+            }
+        });
+
+        // send message
+        const sendMessageButton = document.getElementById('sendMessageButton');
+
+        sendMessageButton.addEventListener('click', async () => {
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            const message = document.getElementById('message').value;
+
+            const response = await fetch(`/api/send-whatsapp/${sessionName}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    phoneNumber: phoneNumber,
+                    message: message
+                })
+            });
+
+            if (response.ok) {
+                alert('Message sent successfully');
+            } else {
+                alert('Error sending message');
+            }
+        });
+    </script>
+</body>
+
+</html>

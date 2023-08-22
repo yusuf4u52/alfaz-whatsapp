@@ -28,8 +28,15 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <script type="module">
+    import { v4 as uuidv4 } from 'https://jspm.dev/uuid';
+    const uuid = uuidv4(); // ⇨ '1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed'
+    if (!localStorage.getItem("uuid")) {
+      localStorage.setItem("uuid", uuid);
+    }
+  </script>
   <script>
-    const sessionName = "yusuf4u52";
+    const sessionName = localStorage.getItem("uuid");
     const qrCodeImage = document.getElementById("qrCode");
     const sendMessageButton = document.getElementById("sendMessageButton");
 

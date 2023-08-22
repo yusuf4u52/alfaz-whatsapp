@@ -1,4 +1,7 @@
+require('dotenv').config();
+
 const express = require('express');
+const session = require('express-session');
 const http = require('http');
 const app = express();
 const server = http.createServer(app);
@@ -8,11 +11,29 @@ const { Client, LocalAuth, WAState, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
 const db = require('./db');
-const fs = require('fs');
 const multer = require('multer');
 const upload = multer();
+const authRouter = require('./routes/auth');
+const path = require('path');
+const passport = require('passport');
+const ensureLogIn = require('connect-ensure-login').ensureLoggedIn;
+const ensureLoggedIn = ensureLogIn();
+
+// view engine setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
 
 app.use(bodyParser.json());
+const sessionMiddleware = session({
+    secret: process.env['SECRET'],
+    resave: false,
+    saveUninitialized: false
+});
+app.use(sessionMiddleware);
+app.use(passport.authenticate('session'));
+app.use('/', authRouter);
+
+io.engine.use(sessionMiddleware);
 
 const clients = new Map();
 
@@ -70,7 +91,7 @@ function initializeClient(sessionName) {
 }
 
 // Example GET endpoint to generate QR code
-app.get('/api/generate-qr/:sessionName', (req, res) => {
+app.get('/api/generate-qr/:sessionName', ensureLoggedIn, (req, res) => {
     const sessionName = req.params.sessionName;
     db.get('SELECT * FROM wasessions WHERE session = ?', [sessionName], function (err, row) {
         if (!row) {
@@ -92,7 +113,7 @@ function processNumbers(phoneNumbers) {
 }
 
 // Endpoint to send WhatsApp message
-app.post('/api/send-whatsapp/:sessionName', upload.single('file'), async (req, res) => {
+app.post('/api/send-whatsapp/:sessionName', ensureLoggedIn, upload.single('file'), async (req, res) => {
     const file = req.file;
     const sessionName = req.params.sessionName;
     const phoneNumbers = req.body.phoneNumber;
@@ -134,7 +155,8 @@ app.post('/api/send-whatsapp/:sessionName', upload.single('file'), async (req, r
 });
 
 // Serve the UI HTML page
-app.get('/', (req, res) => {
+app.get('/', ensureLoggedIn, (req, res) => {
+    console.log(req.user);
     res.sendFile(__dirname + '/index.html'); // Make sure ui.html is in the same directory as this script
 });
 

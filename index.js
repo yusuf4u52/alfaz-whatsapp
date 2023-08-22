@@ -30,6 +30,9 @@ function initializeAllClients() {
 function initializeClient(sessionName) {
     console.log("initialzing " + sessionName);
     const client = new Client({
+        puppeteer: {
+            args: ['--no-sandbox']
+        },
         authStrategy: new LocalAuth({ clientId: sessionName })
     });
     client.on('qr', async (qr) => {
@@ -135,6 +138,6 @@ app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html'); // Make sure ui.html is in the same directory as this script
 });
 
-server.listen(3000, () => {
-    console.log(`Server is running on port 3000`);
+server.listen(80, () => {
+    console.log(`Server is running on port 80`);
 });

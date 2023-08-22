@@ -1,5 +1,6 @@
 .wwebjs*
 package-lock.json
+var
 
 # Logs
 logs

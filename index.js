@@ -4,54 +4,121 @@ const app = express();
 const server = http.createServer(app);
 const socketIo = require('socket.io');
 const io = socketIo(server);
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, WAState, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
+const db = require('./db');
+const fs = require('fs');
+const multer = require('multer');
+const upload = multer();
 
 app.use(bodyParser.json());
 
 const clients = new Map();
 
-// Example GET endpoint to generate QR code
-app.get('/api/generate-qr/:sessionName', (req, res) => {
-    const sessionName = req.params.sessionName;
+// initialize all saved clients in database at the start of the program
+initializeAllClients();
+
+function initializeAllClients() {
+    db.each("SELECT session FROM wasessions", (err, row) => {
+        initializeClient(row.session);
+    });
+
+}
+
+// initialize a whatsapp client
+function initializeClient(sessionName) {
+    console.log("initialzing " + sessionName);
     const client = new Client({
         authStrategy: new LocalAuth({ clientId: sessionName })
     });
     client.on('qr', async (qr) => {
+        console.log('QR Received!');
         const qrDataURL = await qrcode.toDataURL(qr);
         existingSession = qrDataURL; // Update existing session
         io.emit('newQRCode', qrDataURL);
+        io.emit('connecting');
     });
 
     client.on('ready', () => {
-        io.emit('ready', "Client is ready!");
-        console.log('Client is ready!');
+        console.log('Client Is Ready!');
+        io.emit('ready');
     });
 
+    client.on('auth_failure', () => {
+        console.log('Client Authentication Failure!');
+        io.emit('connecting');
+    });
+
+    client.on('authenticated', () => {
+        console.log('Client is Authenticated');
+        io.emit('connecting');
+    });
+
+    client.on('disconnected', () => {
+        console.log('Client Disconnected ' + sessionName);
+        io.emit('disconnected');
+        db.run('DELETE from wasessions WHERE session = ?', [
+            sessionName
+        ]);
+    });
     client.initialize();
     clients.set(sessionName, client);
+}
+
+// Example GET endpoint to generate QR code
+app.get('/api/generate-qr/:sessionName', (req, res) => {
+    const sessionName = req.params.sessionName;
+    db.get('SELECT * FROM wasessions WHERE session = ?', [sessionName], function (err, row) {
+        if (!row) {
+            // make entry in db
+            db.run('INSERT INTO wasessions (session) VALUES (?)', [
+                sessionName
+            ]);
+            initializeClient(sessionName);
+        }
+    });
     res.json({ status: 'QR request submitted succesfully' });
 });
 
 
+function processNumbers(phoneNumbers) {
+    if (phoneNumbers) {
+        return phoneNumbers.split(",");
+    }
+}
 
 // Endpoint to send WhatsApp message
-app.post('/api/send-whatsapp/:sessionName', async (req, res) => {
+app.post('/api/send-whatsapp/:sessionName', upload.single('file'), async (req, res) => {
+    const file = req.file;
     const sessionName = req.params.sessionName;
-    const phoneNumber = req.body.phoneNumber;
+    const phoneNumbers = req.body.phoneNumber;
     const message = req.body.message;
+
+    const dest = processNumbers(phoneNumbers);
 
     try {
         if (clients.has(sessionName)) {
             const client = clients.get(sessionName);
+            const state = await client.getState();
+            // console.log(await client.getState());
+            await dest.forEach(element => {
+                if (state == WAState.CONNECTED) {
+                    if (file) {
+                        const media = new MessageMedia(file.mimetype, file.buffer.toString('base64'), file.originalname, file.size);
+                        client.sendMessage(element + '@c.us', media, { caption: message });
+                    } else {
+                        client.sendMessage(element + '@c.us', message);
+                    }
 
-            // const chat = await client.getChatById(phoneNumber + '@c.us');
-            await client.sendMessage(phoneNumber + '@c.us', message);
+                } else {
+                    res.json({ status: 'Client is not connected' });
+                }
+            });
 
             res.json({
                 sessionName: sessionName,
-                phoneNumber: phoneNumber,
+                phoneNumber: phoneNumbers,
                 message: message,
                 status: 'Message sent'
             });

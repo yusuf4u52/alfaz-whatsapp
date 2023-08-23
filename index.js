@@ -2,9 +2,17 @@ require('dotenv').config();
 
 const express = require('express');
 const session = require('express-session');
-const http = require('http');
+const https = require('https');
 const app = express();
-const server = http.createServer(app);
+const fs = require('fs');
+const path = require('path');
+const options = {
+    key: fs.readFileSync(path.resolve(__dirname, 'ssl/private.key')),
+    cert: fs.readFileSync(path.resolve(__dirname, 'ssl/certificate.crt')),
+    ca: fs.readFileSync(path.resolve(__dirname, 'ssl/ca_bundle.crt'))
+};
+const server = https.createServer(options, app);
+
 const socketIo = require('socket.io');
 const io = socketIo(server);
 const { Client, LocalAuth, WAState, MessageMedia } = require('whatsapp-web.js');
@@ -14,7 +22,6 @@ const db = require('./db');
 const multer = require('multer');
 const upload = multer();
 const authRouter = require('./routes/auth');
-const path = require('path');
 const passport = require('passport');
 const ensureLogIn = require('connect-ensure-login').ensureLoggedIn;
 const ensureLoggedIn = ensureLogIn();
@@ -160,6 +167,7 @@ app.get('/', ensureLoggedIn, (req, res) => {
     res.sendFile(__dirname + '/index.html'); // Make sure ui.html is in the same directory as this script
 });
 
-server.listen(80, () => {
-    console.log(`Server is running on port 80`);
+const PORT = 443;
+server.listen(PORT, () => {
+    console.log(`server at port ${PORT}`);
 });

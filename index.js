@@ -25,6 +25,10 @@ const authRouter = require('./routes/auth');
 const passport = require('passport');
 const ensureLogIn = require('connect-ensure-login').ensureLoggedIn;
 const ensureLoggedIn = ensureLogIn();
+// pass the session to the connect sqlite3 module
+// allowing it to inherit from session.Store
+const SQLiteStore = require('connect-sqlite3')(session);
+
 
 // create rooms for each client
 io.on('connection', (socket) => {
@@ -46,7 +50,8 @@ app.use(bodyParser.json());
 const sessionMiddleware = session({
     secret: process.env['SECRET'],
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    store: new SQLiteStore({ db: 'sessions.db', dir: './var/db' })
 });
 app.use(sessionMiddleware);
 app.use(passport.authenticate('session'));
@@ -120,7 +125,11 @@ function initializeClient(sessionName) {
 // Example GET endpoint to generate QR code
 app.get('/api/generate-qr/:sessionName', ensureLoggedIn, (req, res) => {
     const sessionName = req.params.sessionName;
-    initializeClient(sessionName);
+    db.get('SELECT * FROM wasessions WHERE session = ?', [sessionName], function (err, row) {
+        if (!row) {
+            initializeClient(sessionName);
+        }
+    });
     res.json({ status: 'QR request submitted succesfully' });
 });
 

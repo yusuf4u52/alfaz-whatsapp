@@ -16,10 +16,12 @@
 
     <form class="row g-3" id="sendForm">
       <label class="form-label" for="phoneNumber">To WhatsApp Numbers</label>
-      <input class="form-control" type="text" name="phoneNumber" placeholder="91xxxxxxxxxx,91xxxxxxxxxx" />
+      <input class="form-control" type="text" id="phoneNumber" name="phoneNumber"
+        placeholder="91xxxxxxxxxx,91xxxxxxxxxx" />
       <label class="form-label" for="message">Enter Message to send</label>
-      <textarea class="form-control" rows="3" name="message"></textarea>
-      <input type="file" class="form-control" name="file" />
+      <textarea class="form-control" id="message" rows="3" name="message"></textarea>
+      <label class="form-label" for="file">Upload Files to Send</label>
+      <input type="file" id="file" class="form-control" name="file" />
 
       <button class="btn btn-primary" id="sendMessageButton">
         Send Message
@@ -40,7 +42,8 @@
     const qrCodeImage = document.getElementById("qrCode");
     const sendMessageButton = document.getElementById("sendMessageButton");
 
-    const socket = io(); // Create Socket.IO connection
+    const socket = io(); // Create Socket.IO client connection
+    socket.emit('subscribe', sessionName);
 
     socket.on("newQRCode", (qrDataURL) => {
       qrCodeImage.style.display = "none";

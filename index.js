@@ -40,6 +40,12 @@ io.on('connection', (socket) => {
         socket.join(room);
         console.log(`Websocket joined room: ${room}`);
     });
+
+    socket.on('destroy', (room) => {
+        clients.get(room).destroy();
+        clients.delete(room);
+        console.log("Destroyed " + room)
+    });
 });
 
 // view engine setup

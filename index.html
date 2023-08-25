@@ -23,8 +23,8 @@
       <label class="form-label" for="file">Upload Files to Send</label>
       <input type="file" id="file" class="form-control" name="file" />
 
-      <button class="btn btn-primary" id="sendMessageButton">
-        Send Message
+      <button disabled="true" class="btn btn-primary" id="sendMessageButton">
+        Wait for Whatsapp client to be ready
       </button>
     </form>
   </div>
@@ -41,17 +41,31 @@
     const sessionName = localStorage.getItem("uuid");
     const qrCodeImage = document.getElementById("qrCode");
     const sendMessageButton = document.getElementById("sendMessageButton");
+    const EVENT_THRESHOLD = 2;
 
     const socket = io(); // Create Socket.IO client connection
     socket.emit('subscribe', sessionName);
 
+    let eventCount = 0;
     socket.on("newQRCode", (qrDataURL) => {
-      qrCodeImage.style.display = "none";
+      eventCount++;
+      localStorage.setItem("qr", qrDataURL);
       qrCodeImage.src = qrDataURL;
       qrCodeImage.style.display = "block";
+      if (eventCount >= EVENT_THRESHOLD) {
+        socket.emit("destroy", sessionName);
+        console.log("destroy " + sessionName);
+        qrCodeImage.style.filter = 'blur(3px)';
+        localStorage.removeItem("qr");
+      }
     });
+    if (localStorage.getItem("qr")) {
+      qrCodeImage.src = localStorage.getItem("qr");
+      qrCodeImage.style.display = "block";
+    }
 
     socket.on("ready", () => {
+      localStorage.removeItem("qr");
       qrCodeImage.style.display = "none";
       sendMessageButton.disabled = false;
       sendMessageButton.innerHTML = "Send Message";

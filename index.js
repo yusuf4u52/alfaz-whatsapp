@@ -125,11 +125,9 @@ function initializeClient(sessionName) {
 // Example GET endpoint to generate QR code
 app.get('/api/generate-qr/:sessionName', ensureLoggedIn, (req, res) => {
     const sessionName = req.params.sessionName;
-    db.get('SELECT * FROM wasessions WHERE session = ?', [sessionName], function (err, row) {
-        if (!row) {
-            initializeClient(sessionName);
-        }
-    });
+    if (!clients.has(sessionName)) {
+        initializeClient(sessionName);
+    }
     res.json({ status: 'QR request submitted succesfully' });
 });
 

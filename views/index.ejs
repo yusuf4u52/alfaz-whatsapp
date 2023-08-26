@@ -8,6 +8,15 @@
 </head>
 
 <body>
+  <nav class="navbar" style="background-color: #e3f2fd;">
+    <div class="container-fluid">
+      <a class="navbar-brand">Welcome <%= user.name || user.username %></a>
+      <form  action="/logout" method="post" class="d-flex">
+        <button class="btn btn-outline-success" type="submit">Logout</button>
+      </form>
+    </div>
+  </nav>
+  
   <br />
   <div class="container">
     <h1>Send WhatsApp Message</h1>
@@ -23,20 +32,12 @@
       <label class="form-label" for="file">Upload Files to Send</label>
       <input type="file" id="file" class="form-control" name="file" />
 
-      <button disabled="true" class="btn btn-primary" id="sendMessageButton">
-        Wait for Whatsapp client to be ready
+      <button class="btn btn-primary" id="sendMessageButton">
+        Send Message
       </button>
     </form>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-  <script type="module">
-    import { v4 as uuidv4 } from 'https://jspm.dev/uuid';
-    const uuid = uuidv4(); // ⇨ '1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed'
-    if (!localStorage.getItem("uuid")) {
-      localStorage.setItem("uuid", uuid);
-    }
-  </script>
   <script>
     const sessionName = localStorage.getItem("uuid");
     const qrCodeImage = document.getElementById("qrCode");

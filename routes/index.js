@@ -1,69 +1,11 @@
-require('dotenv').config();
-
-const express = require('express');
-const session = require('express-session');
-const https = require('https');
-const app = express();
-const fs = require('fs');
-const path = require('path');
-const options = {
-    key: fs.readFileSync(path.resolve(__dirname, 'ssl/private.key')),
-    cert: fs.readFileSync(path.resolve(__dirname, 'ssl/certificate.crt')),
-    ca: fs.readFileSync(path.resolve(__dirname, 'ssl/ca_bundle.crt'))
-};
-const server = https.createServer(options, app);
-
-const socketIo = require('socket.io');
-const io = socketIo(server);
 const { Client, LocalAuth, WAState, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
-const bodyParser = require('body-parser');
-const db = require('./db');
+const db = require('../db');
 const multer = require('multer');
 const upload = multer();
-const authRouter = require('./routes/auth');
-const passport = require('passport');
 const ensureLogIn = require('connect-ensure-login').ensureLoggedIn;
 const ensureLoggedIn = ensureLogIn();
-// pass the session to the connect sqlite3 module
-// allowing it to inherit from session.Store
-const SQLiteStore = require('connect-sqlite3')(session);
-
-
-// create rooms for each client
-io.on('connection', (socket) => {
-    console.log('Websocket connected');
-
-    // Listen for a custom event from the client
-    socket.on('subscribe', (room) => {
-        // Join a room based on the data from the client
-        socket.join(room);
-        console.log(`Websocket joined room: ${room}`);
-    });
-
-    socket.on('destroy', (room) => {
-        clients.get(room).destroy();
-        clients.delete(room);
-        console.log("Destroyed " + room)
-    });
-});
-
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
-
-app.use(bodyParser.json());
-const sessionMiddleware = session({
-    secret: process.env['SECRET'],
-    resave: false,
-    saveUninitialized: false,
-    store: new SQLiteStore({ db: 'sessions.db', dir: './var/db' })
-});
-app.use(sessionMiddleware);
-app.use(passport.authenticate('session'));
-app.use('/', authRouter);
-
-// io.engine.use(sessionMiddleware);
+const express = require('express');
 
 const clients = new Map();
 
@@ -89,13 +31,10 @@ function initializeClient(sessionName) {
         console.log('QR Received!');
         const qrDataURL = await qrcode.toDataURL(qr);
         existingSession = qrDataURL; // Update existing session
-        io.to(sessionName).emit('newQRCode', qrDataURL);
-        io.to(sessionName).emit('connecting');
     });
 
     client.on('ready', () => {
         console.log('Whatsapp Is Ready!');
-        io.to(sessionName).emit('ready');
         db.get('SELECT * FROM wasessions WHERE session = ?', [sessionName], function (err, row) {
             if (!row) {
                 // make entry in db
@@ -107,19 +46,8 @@ function initializeClient(sessionName) {
 
     });
 
-    client.on('auth_failure', () => {
-        console.log('Whatsapp  Authentication Failure!');
-        io.to(sessionName).emit('connecting');
-    });
-
-    client.on('authenticated', () => {
-        console.log('Whatsapp is Authenticated');
-        io.to(sessionName).emit('connecting');
-    });
-
     client.on('disconnected', () => {
         console.log('Whatsapp Disconnected ' + sessionName);
-        io.to(sessionName).emit('disconnected');
         db.run('DELETE from wasessions WHERE session = ?', [
             sessionName
         ]);
@@ -128,8 +56,10 @@ function initializeClient(sessionName) {
     clients.set(sessionName, client);
 }
 
+const router = express.Router();
+
 // Example GET endpoint to generate QR code
-app.get('/api/generate-qr/:sessionName', ensureLoggedIn, (req, res) => {
+router.get('/api/generate-qr/:sessionName', ensureLoggedIn, (req, res) => {
     const sessionName = req.params.sessionName;
     if (!clients.has(sessionName)) {
         initializeClient(sessionName);
@@ -145,7 +75,7 @@ function processNumbers(phoneNumbers) {
 }
 
 // Endpoint to send WhatsApp message
-app.post('/api/send-whatsapp/:sessionName', upload.single('file'), async (req, res) => {
+router.post('/api/send-whatsapp/:sessionName', upload.single('file'), async (req, res) => {
     const file = req.file;
     const sessionName = req.params.sessionName;
     const phoneNumbers = req.body.phoneNumber;
@@ -185,13 +115,9 @@ app.post('/api/send-whatsapp/:sessionName', upload.single('file'), async (req, r
 });
 
 // Serve the UI HTML page
-app.get('/', ensureLoggedIn, (req, res) => {
+router.get('/', ensureLoggedIn, (req, res) => {
     console.log(req.user);
-    res.sendFile(__dirname + '/index.html'); // Make sure ui.html is in the same directory as this script
+    res.render('index', { user: req.user });
 });
 
-const httpsPort = 443;
-const hostname = "0.0.0.0"
-server.listen(httpsPort, hostname, () => {
-    console.log(`HTTPS server listening on port ${httpsPort}`);
-});
+module.exports = router;

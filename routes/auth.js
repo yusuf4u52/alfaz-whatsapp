@@ -7,7 +7,7 @@ passport.use(new GoogleStrategy({
     clientID: process.env['GOOGLE_CLIENT_ID'],
     clientSecret: process.env['GOOGLE_CLIENT_SECRET'],
     callbackURL: '/oauth2/redirect/google',
-    scope: ['profile']
+    scope: ['profile', 'email']
 }, function verify(issuer, profile, cb) {
     db.get('SELECT * FROM federated_credentials WHERE provider = ? AND subject = ?', [
         issuer,
@@ -15,8 +15,9 @@ passport.use(new GoogleStrategy({
     ], function (err, row) {
         if (err) { return cb(err); }
         if (!row) {
-            db.run('INSERT INTO users (name) VALUES (?)', [
-                profile.displayName
+            db.run('INSERT INTO users (name, username) VALUES (?,?)', [
+                profile.displayName,
+                profile.emails[0].value
             ], function (err) {
                 if (err) { return cb(err); }
 
@@ -29,6 +30,7 @@ passport.use(new GoogleStrategy({
                     if (err) { return cb(err); }
                     var user = {
                         id: id,
+                        username: profile.emails[0].value,
                         name: profile.displayName
                     };
                     return cb(null, user);

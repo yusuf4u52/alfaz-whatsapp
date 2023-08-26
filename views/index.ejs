@@ -10,18 +10,20 @@
 <body>
   <nav class="navbar" style="background-color: #e3f2fd;">
     <div class="container-fluid">
-      <a class="navbar-brand">Welcome <%= user.name || user.username %></a>
-      <form  action="/logout" method="post" class="d-flex">
+      <a class="navbar-brand" style="text-transform: capitalize;">Welcome <%= user.name || user.username %></a>
+      <form action="/logout" method="post" class="d-flex">
         <button class="btn btn-outline-success" type="submit">Logout</button>
       </form>
     </div>
   </nav>
-  
+
   <br />
   <div class="container">
     <h1>Send WhatsApp Message</h1>
-
-    <img id="qrCode" alt="QR Code" style="display: none" />
+    <div id="add_to_me" class="text-center">
+      <button class="btn btn-primary" id="generateQRButton">Generate QR</button>
+      <img id="qrCode" alt="QR Code" style="display: none" />
+    </div>
 
     <form class="row g-3" id="sendForm">
       <label class="form-label" for="phoneNumber">To WhatsApp Numbers</label>
@@ -31,59 +33,34 @@
       <textarea class="form-control" id="message" rows="3" name="message"></textarea>
       <label class="form-label" for="file">Upload Files to Send</label>
       <input type="file" id="file" class="form-control" name="file" />
-
       <button class="btn btn-primary" id="sendMessageButton">
         Send Message
       </button>
     </form>
   </div>
-
   <script>
-    const sessionName = localStorage.getItem("uuid");
-    const qrCodeImage = document.getElementById("qrCode");
+    const generateQRButton = document.getElementById("generateQRButton");
     const sendMessageButton = document.getElementById("sendMessageButton");
-    const EVENT_THRESHOLD = 2;
+    const qrCodeImage = document.getElementById("qrCode");
+    const add_to_me = document.getElementById("add_to_me");
+    let sessionName = '<%-user.username.split("@")[0] %>'
 
-    const socket = io(); // Create Socket.IO client connection
-    socket.emit('subscribe', sessionName);
-
-    let eventCount = 0;
-    socket.on("newQRCode", (qrDataURL) => {
-      eventCount++;
-      localStorage.setItem("qr", qrDataURL);
-      qrCodeImage.src = qrDataURL;
-      qrCodeImage.style.display = "block";
-      if (eventCount >= EVENT_THRESHOLD) {
-        socket.emit("destroy", sessionName);
-        console.log("destroy " + sessionName);
-        qrCodeImage.style.filter = 'blur(3px)';
-        localStorage.removeItem("qr");
-      }
+    generateQRButton.addEventListener("click", async (e) => {
+      e.preventDefault();
+      fetch(`/api/generate-qr/${sessionName}`) // Change this URL to your server endpoint
+        .then(response => response.json())
+        .then(data => {
+          if (data.qr.includes("connected")) {
+            add_to_me.innerHTML = '<p class="text-center">' + data.qr + '<p><button class="btn btn-primary" id="disconnect">Disconnect</button>';
+          } else {
+            qrCodeImage.src = data.qr;;
+            qrCodeImage.style = 'block';
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        });
     });
-    if (localStorage.getItem("qr")) {
-      qrCodeImage.src = localStorage.getItem("qr");
-      qrCodeImage.style.display = "block";
-    }
-
-    socket.on("ready", () => {
-      localStorage.removeItem("qr");
-      qrCodeImage.style.display = "none";
-      sendMessageButton.disabled = false;
-      sendMessageButton.innerHTML = "Send Message";
-    });
-
-    socket.on("connecting", () => {
-      sendMessageButton.innerHTML = "Wait for Whatsapp client to be ready";
-      sendMessageButton.disabled = true;
-    });
-
-    socket.on("disconnected", () => {
-      location.reload();
-    });
-
-    if (sessionName) {
-      const response = fetch(`/api/generate-qr/${sessionName}`);
-    }
 
     // send message
     sendMessageButton.addEventListener("click", async (e) => {

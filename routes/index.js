@@ -13,7 +13,7 @@ const clients = new Map();
 initializeAllClients();
 
 function initializeAllClients() {
-    db.each("SELECT session FROM wasessions", (err, row) => {
+    db.each("SELECT session FROM wasessions where status='ready'", (err, row) => {
         initializeClient(row.session);
     });
 }
@@ -30,20 +30,27 @@ function initializeClient(sessionName) {
     client.on('qr', async (qr) => {
         console.log('QR Received!');
         const qrDataURL = await qrcode.toDataURL(qr);
-        existingSession = qrDataURL; // Update existing session
+        db.run(
+            'insert or replace INTO wasessions (session,qrcode) VALUES (?,?)',
+            [sessionName, qrDataURL],
+            function (err) {
+                if (err) {
+                    return console.log(err.message);
+                }
+            }
+        );
     });
 
     client.on('ready', () => {
         console.log('Whatsapp Is Ready!');
-        db.get('SELECT * FROM wasessions WHERE session = ?', [sessionName], function (err, row) {
-            if (!row) {
-                // make entry in db
-                db.run('INSERT INTO wasessions (session) VALUES (?)', [
-                    sessionName
-                ]);
+        db.run("UPDATE wasessions SET status='ready' WHERE session = ?",
+            [sessionName],
+            function (err) {
+                if (err) {
+                    return console.log(err.message);
+                }
             }
-        });
-
+        );
     });
 
     client.on('disconnected', () => {
@@ -64,9 +71,16 @@ router.get('/api/generate-qr/:sessionName', ensureLoggedIn, (req, res) => {
     if (!clients.has(sessionName)) {
         initializeClient(sessionName);
     }
-    res.json({ status: 'QR request submitted succesfully' });
+    db.get('SELECT * FROM wasessions WHERE session = ?', [sessionName], function (err, row) {
+        if (row.status == 'ready') {
+            const client = clients.get(sessionName);
+            let info = client.info;
+            res.json({ qr: info.wid.user + ' already connected' })
+        } else {
+            res.json({ qr: row.qrcode })
+        }
+    });
 });
-
 
 function processNumbers(phoneNumbers) {
     if (phoneNumbers) {
@@ -116,7 +130,6 @@ router.post('/api/send-whatsapp/:sessionName', upload.single('file'), async (req
 
 // Serve the UI HTML page
 router.get('/', ensureLoggedIn, (req, res) => {
-    console.log(req.user);
     res.render('index', { user: req.user });
 });
 

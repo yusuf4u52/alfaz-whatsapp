@@ -9,7 +9,9 @@ const db = new sqlite3.Database('./var/db/alfaz.db');
 const createTableQuery = `
   CREATE TABLE IF NOT EXISTS wasessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session TEXT type UNIQUE 
+    session TEXT type UNIQUE,
+    qrcode TEXT,
+    status TEXT
   )
 `;
 
